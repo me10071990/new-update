@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Session;
 use App\Post;
+use Carbon\Carbon;
 
 
 
@@ -92,34 +93,28 @@ class PostController extends Controller
             'file'=>'mimes:jpeg,pdf,docx,png:5000',
             'content'=>'required',
             'category_id'=>'required',
-
-
         ]);
 
-        // Create Initial Required Data ARray
+        // Create Initial Required Data Array
         $data = [
 
             'link'=>$request->link,
-            //'date_time'=>$request->date_time,
             'title'=>$request->title,
             'content'=>$request->content,
             'category_id'=>$request->category_id,
-
             'slug'=>str_slug($request->title),
 
-            'date_time' => date("Y-m-d H:i:s", strtotime(request('date_time'))),
+            $date = date('Y-m-d H:i:s'),
+             $date_time = Carbon::createFromFormat('Y-m-d H:i:s', $date)
+            ->format('d-m-Y'),
 
-        ];
+            ];
 
         if(request('link'))
         {
             $link=request('link');
 
         }
-
-
-
-
         // Optionally add 'featured' if found to the Data array
         if (request('featured'))
         {
@@ -134,23 +129,13 @@ class PostController extends Controller
             $file = request('file');
             $file_name = time() . $file->getClientOriginalName();
             $file->move('uploads/posts', $file_name);
-//            $content = base64_encode(file_get_contents($_FILES['pdf'['tmp_name']));
-
-
             $data['file'] = 'uploads/posts/'.$file_name;
 
-
-            //$data->content=$content;
         }
-
-
-
         // Create the Post with the $data Array
 
+       $post = Post::create($data);
 
-
-
-        $post = Post::create($data);
 
 
         Session::flash('success', 'New Blog has been Published on Website for Particular Menu');
@@ -159,21 +144,37 @@ class PostController extends Controller
 
     }
 
+
+
     /**
      * Display the specified resource.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
 
-        {
 
-            $file=Post::find($id);
+    public function getDocument($id)
+    {
+        $data = Post::findOrFail($id);
 
-            $content = base64_decode($file->content);
+        $file = $data->file_name;
 
-            return response($content)->header('Content-Type', $file->file);
+        // file not found
+        if( ! Storage::exists($file) ) {
+            abort(404);
+        }
+
+        $pdfContent = Storage::get($file);
+
+        // for pdf, it will be 'application/pdf'
+        $type       = Storage::mimeType($file);
+        $file_name   = Storage::name($file);
+
+        return Response::make($pdfContent, 200, [
+            'Content-Type'        => $type,
+            'Content-Disposition' => 'inline; filename="'.$file_name.'"'
+        ]);
     }
 
     /**
@@ -188,21 +189,15 @@ class PostController extends Controller
 
         if($post->count()==0 )
         {
-
             Session::flash('info', 'You must have to Create Menu before Creating blog ');
-
         }
 
         //positionClass:"toast-top-right
-
-
 
         elseif($post)
         {
             Session::flash('info', 'Please Be Sure Your menu should be same for UPDATING menu');
         }
-
-
         return view('admin.posts.edit')->with('post', $post)->with('levels', Category::all());
     }
 
@@ -248,9 +243,14 @@ class PostController extends Controller
         $post->date_time=$request->date_time;
         $post->title=$request->title;
         $post->content=$request->content;
+
+
         $post->category_id=$request->category_id;
+
         $post->save();
+
         Session::flash('success', 'Post updated successfully.');
+
         return redirect()->back();
 
     }
@@ -317,10 +317,6 @@ class PostController extends Controller
 
 
     }
-
-
-
-
 
 
 
